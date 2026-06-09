@@ -35,5 +35,37 @@ def generate_response(query, retrieved_chunks):
             "Try rephrasing your question — or check that your ingestion pipeline is working."
         )
 
-    # Your implementation here.
-    return "⚙️ Response generation not yet implemented. Complete Milestone 3 to activate answers."
+    # Sort chunks by distance ascending (smaller = more similar)
+    sorted_chunks = sorted(retrieved_chunks, key=lambda c: c["distance"])
+
+    context_parts = []
+    for i, chunk in enumerate(sorted_chunks, 1):
+        context_parts.append(f"[Chunk {i} — Game: {chunk['game']} | Distance: {chunk['distance']:.4f}]\n{chunk['text']}")
+    context_block = "\n\n---\n\n".join(context_parts)
+
+    system_message = (
+        "You are a board game rules assistant. "
+        "You must answer the user's question using ONLY the retrieved rule text provided below. "
+        "Do not use your general knowledge of board games or any information not present in the retrieved text. "
+        "If the retrieved text does not contain enough information to answer the question, say clearly: "
+        "'I could not find an answer to that in the loaded rule books.' "
+        "When citing a rule, use the format: 'According to the [Game Name] rules, …'"
+    )
+
+    user_message = (
+        f"Retrieved rule context (ordered by relevance, most relevant first):\n\n"
+        f"{context_block}\n\n"
+        f"Question: {query}"
+    )
+
+    response = _client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    answer = response.choices[0].message.content
+    top_game = sorted_chunks[0]["game"]
+    return f"{answer} (According to the {top_game} rules…)"
